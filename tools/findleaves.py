@@ -66,7 +66,43 @@ Options:
     })
   sys.exit(1)
 
+
+import time
+from hashlib import sha1
+def cache_file(argv, mode):
+  dir = os.path.join(os.path.dirname(__file__), '.findleaves')
+  if not os.path.exists(dir):
+    os.mkdir(dir)
+  return open(os.path.join(dir, sha1(':'.join(argv)).hexdigest()), mode)
+
+cache_ts = '%Y%m%d'
+
+from contextlib import contextmanager
+@contextmanager
+def write_cache(argv):
+  cache = cache_file(argv, 'w')
+  print(repr(argv), file = cache)
+  print(time.strftime(cache_ts), file = cache)
+  yield cache
+  cache.close()
+
+def read_cache(argv):
+  try:
+    cache = cache_file(argv, 'r')
+  except IOError:
+    return None
+  with cache:
+    cache.readline()
+    if cache.readline().strip() == time.strftime(cache_ts):
+      return cache.read()
+  return None
+
 def main(argv):
+  cache = read_cache(argv)
+  if cache is not None:
+    print(cache)
+    return
+
   mindepth = -1
   prune = []
   i=1
@@ -91,8 +127,11 @@ def main(argv):
   filename = argv[-1]
   results = list(set(perform_find(mindepth, prune, dirlist, filename)))
   results.sort()
-  for r in results:
-    print r
+  
+  with write_cache(argv) as cache:
+    for r in results:
+      print(r)
+      print(r, file = cache)
 
 if __name__ == "__main__":
   main(sys.argv)
